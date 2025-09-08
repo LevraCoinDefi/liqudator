@@ -26,6 +26,7 @@ async function checkNetwork(network: keyof typeof networks) {
   const signer = await getSigner(network);
   const botAddress = await signer.getAddress();
 
+
   try {
     const nativeBalance = await provider.getBalance(botAddress);
     console.log(`Native balance for ${String(network)}: ${ethers.formatEther(nativeBalance)} ${config.networkToken}`);
@@ -33,7 +34,7 @@ async function checkNetwork(network: keyof typeof networks) {
     if (nativeBalance < BigInt(config.tokenMinimum)) {
       const now = Date.now();
       if (now - lastWarningTimestamp > WARNING_INTERVAL_MS) {
-        await sendMessage(`Warning: Low native balance on ${String(network)} for bot address ${botAddress}: ${ethers.formatEther(nativeBalance)} ${config.networkToken}`);
+        await sendMessage(`⚠️ Warning: Low native balance on ${String(network)} for bot address ${botAddress}: ${ethers.formatEther(nativeBalance)} ${config.networkToken}`);
         lastWarningTimestamp = now;
       }
     }
@@ -48,34 +49,34 @@ async function checkNetwork(network: keyof typeof networks) {
 
         // Execute liquidation transaction
         const tx = await executeLiquidate(network, assetName, MAX_VESSELS_TO_LIQUIDATE);
-        await sendMessage(`Liquidation transaction sent for asset ${assetName} on ${String(network)}. Tx hash: ${tx.hash}`);
+        await sendMessage(`🚀 Liquidation transaction sent for asset ${assetName} on ${String(network)}. Tx hash: ${tx.hash}`);
         console.log(`Transaction sent: ${tx.hash}`);
 
         const receipt = await tx.wait();
         if (receipt && receipt.status === 1) {
-          await sendMessage(`Liquidation succeeded for asset ${assetName} on ${String(network)}. Tx hash: ${tx.hash}`);
+          await sendMessage(`✅ Liquidation succeeded for asset ${assetName} on ${String(network)}. Tx hash: ${tx.hash}`);
           console.log(`Liquidation succeeded for asset ${assetName} on ${String(network)}`);
         } else {
-          await sendMessage(`Liquidation failed for asset ${assetName} on ${String(network)}. Tx hash: ${tx.hash}`);
+          await sendMessage(`❌ Liquidation failed for asset ${assetName} on ${String(network)}. Tx hash: ${tx.hash}`);
           console.log(`Liquidation failed for asset ${assetName} on ${String(network)}`);
         }
       } catch (error: any) {
         if (error.code === 'CALL_EXCEPTION') {
           console.log(`Static call reverted for asset ${assetName} on ${String(network)}, no liquidation needed.`);
         } else {
-          await sendMessage(`Error during liquidation for asset ${assetName} on ${String(network)}: ${error.message || error}`);
+          await sendMessage(`⚠️ Error during liquidation for asset ${assetName} on ${String(network)}: ${error.message || error}`);
           console.error(`Error during liquidation for asset ${assetName} on ${String(network)}:`, error);
         }
       } finally {
         const debtContract = getDebtTokenContract(provider, network);
         const debtBalance = await debtContract.balanceOf(botAddress);
         const nativeBal = await provider.getBalance(botAddress);
-        await sendMessage(`Balances after checking asset ${assetName} on ${String(network)}: DebtToken balance: ${ethers.formatEther(debtBalance)}, Native balance: ${ethers.formatEther(nativeBal)}`);
+        await sendMessage(`💰 Balances after checking asset ${assetName} on ${String(network)}: DebtToken balance: ${ethers.formatEther(debtBalance)}, Native balance: ${ethers.formatEther(nativeBal)}`);
         console.log(`Balances after checking asset ${assetName} on ${String(network)}: DebtToken balance: ${ethers.formatEther(debtBalance)}, Native balance: ${ethers.formatEther(nativeBal)}`);
       }
     }
   } catch (err: any) {
-    await sendMessage(`Error in check cycle for network ${String(network)}: ${err.message || err}`);
+    await sendMessage(`⚠️ Error in check cycle for network ${String(network)}: ${err.message || err}`);
     console.error(`Error in check cycle for network ${String(network)}:`, err);
   }
 }
