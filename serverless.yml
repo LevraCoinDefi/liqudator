@@ -1,0 +1,29 @@
+service: liqudator-bot
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  environment:
+    LIQ_BOT_PRIVATE_KEY: ${env:LIQ_BOT_PRIVATE_KEY}
+    TELEGRAM_BOT_TOKEN: ${env:TELEGRAM_BOT_TOKEN}
+    TELEGRAM_CHAT_ID: ${env:TELEGRAM_CHAT_ID}
+    CHECK_INTERVAL_MINUTES: 1
+
+functions:
+  liquidate:
+    handler: src/lambda.handler
+    events:
+      - schedule:
+          rate: rate(5 minutes)
+          enabled: true
+          input:
+            action: liquidate
+
+  balance:
+    handler: src/lambda.handler
+    events:
+      - schedule:
+          rate: rate(1 day)
+          enabled: true
+          input:
+            action: balance

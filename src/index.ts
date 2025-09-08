@@ -4,28 +4,24 @@ import { sendMessage } from './telegram';
 import {
   getProvider,
   getSigner,
-  getVesselManagerContract,
   getDebtTokenContract,
   staticCallLiquidate,
   executeLiquidate,
-  getBalances
 } from './contracts';
 import { ethers } from 'ethers';
 
 dotenv.config();
 
-const CHECK_INTERVAL_MINUTES = Number(process.env.CHECK_INTERVAL_MINUTES) || 1;
 const WARNING_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 let lastWarningTimestamp = 0;
 
-async function checkNetwork(network: keyof typeof networks) {
+export async function checkNetwork(network: keyof typeof networks) {
   console.log(`\nStarting check cycle for network: ${String(network)}`);
   const config = networks[network];
   const provider = await getProvider(network);
   const signer = await getSigner(network);
   const botAddress = await signer.getAddress();
-
 
   try {
     const nativeBalance = await provider.getBalance(botAddress);
@@ -38,22 +34,31 @@ async function checkNetwork(network: keyof typeof networks) {
         lastWarningTimestamp = now;
       }
     }
+  } catch (err: any) {
+    await sendMessage(`⚠️ Error checking native balance for network ${String(network)}: ${err.message || err}`);
+    console.error(`Error checking native balance for network ${String(network)}:`, err);
+  }
+}
+
+export async function liquidate() {
+  for (const network of Object.keys(networks) as (keyof typeof networks)[]) {
+    console.log(`\nStarting liquidation cycle for network: ${String(network)}`);
+    const provider = await getProvider(network);
+    const signer = await getSigner(network);
+    const botAddress = await signer.getAddress();
 
     for (const [assetName, assetAddress] of Object.entries(assets[network])) {
       console.log(`Checking asset ${assetName} (${assetAddress}) on ${String(network)}`);
 
       try {
-        // Static call to check if liquidation is possible
         await staticCallLiquidate(network, assetName, MAX_VESSELS_TO_CHECK);
         console.log(`Static call succeeded for asset ${assetName} on ${String(network)}`);
-      } catch (e:any) {
-        // console.log('e.shortMessage:', e.shortMessage);
+      } catch (e: any) {
         console.log(`Static call reverted for asset ${assetName} on ${String(network)}, no liquidation needed.`);
         continue;
       }
 
       try {
-        // Execute liquidation transaction
         const tx = await executeLiquidate(network, assetName, MAX_VESSELS_TO_LIQUIDATE);
         await sendMessage(`🚀 Liquidation transaction sent for asset ${assetName} on ${String(network)}. Tx hash: ${tx.hash}`);
         console.log(`Transaction sent: ${tx.hash}`);
@@ -66,22 +71,41 @@ async function checkNetwork(network: keyof typeof networks) {
           await sendMessage(`❌ Liquidation failed for asset ${assetName} on ${String(network)}. Tx hash: ${tx.hash}`);
           console.log(`Liquidation failed for asset ${assetName} on ${String(network)}`);
         }
-
       } catch (error: any) {
         await sendMessage(`⚠️ Error during liquidation for asset ${assetName} on ${String(network)}: ${error.message || error}`);
         console.error(`Error during liquidation for asset ${assetName} on ${String(network)}:`, error);
-
       } finally {
-        const debtContract = getDebtTokenContract(provider, network);
-        const debtBalance = await debtContract.balanceOf(botAddress);
-        const nativeBal = await provider.getBalance(botAddress);
-        await sendMessage(`💰 Balances after checking asset ${assetName} on ${String(network)}: DebtToken balance: ${ethers.formatEther(debtBalance)}, Native balance: ${ethers.formatEther(nativeBal)}`);
-        console.log(`Balances after checking asset ${assetName} on ${String(network)}: DebtToken balance: ${ethers.formatEther(debtBalance)}, Native balance: ${ethers.formatEther(nativeBal)}`);
+        try {
+          const debtContract = getDebtTokenContract(provider, network);
+          const debtBalance = await debtContract.balanceOf(botAddress);
+          const nativeBal = await provider.getBalance(botAddress);
+          await sendMessage(`💰 Balances after liquidation for asset ${assetName} on ${String(network)}: DebtToken balance: ${ethers.formatEther(debtBalance)}, Native balance: ${ethers.formatEther(nativeBal)}`);
+          console.log(`Balances after liquidation for asset ${assetName} on ${String(network)}: DebtToken balance: ${ethers.formatEther(debtBalance)}, Native balance: ${ethers.formatEther(nativeBal)}`);
+        } catch (balanceError: any) {
+          console.error(`Error fetching balances after liquidation for asset ${assetName} on ${String(network)}:`, balanceError);
+        }
       }
     }
-  } catch (err: any) {
-    await sendMessage(`⚠️ Error in check cycle for network ${String(network)}: ${err.message || err}`);
-    console.error(`Error in check cycle for network ${String(network)}:`, err);
+  }
+}
+
+export async function balance() {
+  for (const network of Object.keys(networks) as (keyof typeof networks)[]) {
+    console.log(`\nChecking balances for network: ${String(network)}`);
+    const provider = await getProvider(network);
+    const signer = await getSigner(network);
+    const botAddress = await signer.getAddress();
+
+    try {
+      const debtContract = getDebtTokenContract(provider, network);
+      const debtBalance = await debtContract.balanceOf(botAddress);
+      const nativeBal = await provider.getBalance(botAddress);
+      await sendMessage(`💰 Balances for network ${String(network)}: DebtToken balance: ${ethers.formatEther(debtBalance)}, Native balance: ${ethers.formatEther(nativeBal)}`);
+      console.log(`Balances for network ${String(network)}: DebtToken balance: ${ethers.formatEther(debtBalance)}, Native balance: ${ethers.formatEther(nativeBal)}`);
+    } catch (err: any) {
+      await sendMessage(`⚠️ Error checking balances for network ${String(network)}: ${err.message || err}`);
+      console.error(`Error checking balances for network ${String(network)}:`, err);
+    }
   }
 }
 
@@ -112,6 +136,8 @@ async function main() {
     process.exit(0);
   });
 
+  const CHECK_INTERVAL_MINUTES = Number(process.env.CHECK_INTERVAL_MINUTES) || 1;
+
   setInterval(async () => {
     for (const network of Object.keys(networks) as (keyof typeof networks)[]) {
       await checkNetwork(network);
@@ -124,8 +150,10 @@ async function main() {
   }
 }
 
-main().catch(async (err) => {
-  console.error('Fatal error in main:', err);
-  await sendMessage(`Liquidation bot fatal error: ${err.message || err}`);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch(async (err) => {
+    console.error('Fatal error in main:', err);
+    await sendMessage(`Liquidation bot fatal error: ${err.message || err}`);
+    process.exit(1);
+  });
+}
