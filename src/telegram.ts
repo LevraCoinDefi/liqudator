@@ -1,7 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api';
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
-const chatId = process.env.TELEGRAM_CHAT_ID;
+const chatId = process.env.TELEGRAM_CHAT_ID ?? '';
 
 if (!token || !chatId) {
   console.error('Telegram token or chat ID not provided');
