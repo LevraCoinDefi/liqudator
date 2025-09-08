@@ -20,7 +20,7 @@ const WARNING_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 let lastWarningTimestamp = 0;
 
 async function checkNetwork(network: keyof typeof networks) {
-  console.log(`Starting check cycle for network: ${String(network)}`);
+  console.log(`\nStarting check cycle for network: ${String(network)}`);
   const config = networks[network];
   const provider = await getProvider(network);
   const signer = await getSigner(network);
@@ -46,7 +46,13 @@ async function checkNetwork(network: keyof typeof networks) {
         // Static call to check if liquidation is possible
         await staticCallLiquidate(network, assetName, MAX_VESSELS_TO_CHECK);
         console.log(`Static call succeeded for asset ${assetName} on ${String(network)}`);
+      } catch (e:any) {
+        // console.log('e.shortMessage:', e.shortMessage);
+        console.log(`Static call reverted for asset ${assetName} on ${String(network)}, no liquidation needed.`);
+        continue;
+      }
 
+      try {
         // Execute liquidation transaction
         const tx = await executeLiquidate(network, assetName, MAX_VESSELS_TO_LIQUIDATE);
         await sendMessage(`🚀 Liquidation transaction sent for asset ${assetName} on ${String(network)}. Tx hash: ${tx.hash}`);
@@ -60,13 +66,11 @@ async function checkNetwork(network: keyof typeof networks) {
           await sendMessage(`❌ Liquidation failed for asset ${assetName} on ${String(network)}. Tx hash: ${tx.hash}`);
           console.log(`Liquidation failed for asset ${assetName} on ${String(network)}`);
         }
+
       } catch (error: any) {
-        if (error.code === 'CALL_EXCEPTION') {
-          console.log(`Static call reverted for asset ${assetName} on ${String(network)}, no liquidation needed.`);
-        } else {
-          await sendMessage(`⚠️ Error during liquidation for asset ${assetName} on ${String(network)}: ${error.message || error}`);
-          console.error(`Error during liquidation for asset ${assetName} on ${String(network)}:`, error);
-        }
+        await sendMessage(`⚠️ Error during liquidation for asset ${assetName} on ${String(network)}: ${error.message || error}`);
+        console.error(`Error during liquidation for asset ${assetName} on ${String(network)}:`, error);
+
       } finally {
         const debtContract = getDebtTokenContract(provider, network);
         const debtBalance = await debtContract.balanceOf(botAddress);

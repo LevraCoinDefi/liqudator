@@ -17,7 +17,7 @@ export const networks = {
   avalanche: {
     rpc: "https://avalanche-mainnet.infura.io/v3/d06fcac3ac2047259ded5a4f543d1e83",
     networkToken: "AVAX",
-    tokenMinimum: 1e18,
+    tokenMinimum: 0.5e18,
     VesselManagerOperations: "0xEA7160Cd7f9672E8F5ba67DF4D34D42F7d7006FA",
     DebtToken: "0xc1303E1e2f204F16C7493214C66B4D34eeBA2f2d"
   }
