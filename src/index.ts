@@ -12,34 +12,6 @@ import { ethers } from 'ethers';
 
 dotenv.config();
 
-const WARNING_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-
-let lastWarningTimestamp = 0;
-
-export async function checkNetwork(network: keyof typeof networks) {
-  console.log(`\nStarting check cycle for network: ${String(network)}`);
-  const config = networks[network];
-  const provider = await getProvider(network);
-  const signer = await getSigner(network);
-  const botAddress = await signer.getAddress();
-
-  try {
-    const nativeBalance = await provider.getBalance(botAddress);
-    console.log(`Native balance for ${String(network)}: ${ethers.formatEther(nativeBalance)} ${config.networkToken}`);
-
-    if (nativeBalance < BigInt(config.tokenMinimum)) {
-      const now = Date.now();
-      if (now - lastWarningTimestamp > WARNING_INTERVAL_MS) {
-        await sendMessage(`⚠️ Warning: Low native balance on ${String(network)} for bot address ${botAddress}: ${ethers.formatEther(nativeBalance)} ${config.networkToken}`);
-        lastWarningTimestamp = now;
-      }
-    }
-  } catch (err: any) {
-    await sendMessage(`⚠️ Error checking native balance for network ${String(network)}: ${err.message || err}`);
-    console.error(`Error checking native balance for network ${String(network)}:`, err);
-  }
-}
-
 export async function liquidate() {
   for (const network of Object.keys(networks) as (keyof typeof networks)[]) {
     console.log(`\nStarting liquidation cycle for network: ${String(network)}`);
@@ -136,18 +108,21 @@ async function main() {
     process.exit(0);
   });
 
-  const CHECK_INTERVAL_MINUTES = Number(process.env.CHECK_INTERVAL_MINUTES) || 1;
+  const liquidationInterval = parseFloat(process.env.CHECK_INTERVAL_MINUTES || '1');
 
+  // Run liquidate every 5 minutes
   setInterval(async () => {
-    for (const network of Object.keys(networks) as (keyof typeof networks)[]) {
-      await checkNetwork(network);
-    }
-  }, CHECK_INTERVAL_MINUTES * 60 * 1000);
+    await liquidate();
+  }, liquidationInterval * 60 * 1000);
+
+  // Run balance every 24 hours
+  setInterval(async () => {
+    await balance();
+  }, 24 * 60 * 60 * 1000);
 
   // Run immediately on start
-  for (const network of Object.keys(networks) as (keyof typeof networks)[]) {
-    await checkNetwork(network);
-  }
+  await balance();
+  await liquidate();
 }
 
 if (require.main === module) {
