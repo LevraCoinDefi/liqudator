@@ -1,3 +1,7 @@
+import dotenv from "dotenv";
+
+dotenv.config();
+
 export const MAX_VESSELS_TO_CHECK = 1;
 export const MAX_VESSELS_TO_LIQUIDATE = 1;
 
@@ -15,7 +19,7 @@ export const assets = {
 
 export const networks = {
   avalanche: {
-    rpc: "https://avalanche-mainnet.infura.io/v3/d06fcac3ac2047259ded5a4f543d1e83",
+    rpc: process.env.AVALANCHE_RPC,
     networkToken: "AVAX",
     tokenMinimum: 0.5e18,
     VesselManagerOperations: "0xEA7160Cd7f9672E8F5ba67DF4D34D42F7d7006FA",
